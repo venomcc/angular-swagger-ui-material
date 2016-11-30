@@ -100,23 +100,6 @@ angular.module('sw.ui.md')
 'use strict';
 
 angular.module('sw.ui.md')
-    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
-        var vm = this;
-
-        $scope.$on('sw:changed', update);
-
-        update();
-
-        function update () {
-            $log.debug('sw:changed:description');
-
-            vm.description = data.model.info && data.model.info.description;
-        }
-    }]);
-
-'use strict';
-
-angular.module('sw.ui.md')
     .controller('DetailController', ["$scope", "$rootScope", "$timeout", "$log", "data", "theme", "style", "tools", "utils", "syntax", "client", "format", function ($scope, $rootScope, $timeout, $log, data, theme, style, tools, utils, syntax, client, format) {
         var vm = this;
 
@@ -298,6 +281,23 @@ angular.module('sw.ui.md')
             $event.stopPropagation();
             data.model.sop = op;
             $rootScope.$emit('sw:operation');
+        }
+    }]);
+
+'use strict';
+
+angular.module('sw.ui.md')
+    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
+        var vm = this;
+
+        $scope.$on('sw:changed', update);
+
+        update();
+
+        function update () {
+            $log.debug('sw:changed:description');
+
+            vm.description = data.model.info && data.model.info.description;
         }
     }]);
 
@@ -612,658 +612,6 @@ angular.module('sw.plugin.parser', ['sw.plugins'])
     }])
     .run(["plugins", "parser", function (plugins, parser) {
         plugins.add(plugins.PARSE, parser);
-    }]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular.module('sw.ui', [
-    'sw.plugins'
-]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular
-    .module('sw.ui')
-    .factory('model', ["$log", function ($log) {
-        /**
-         * sample object cache to avoid generating the same one multiple times
-         */
-        var objCache = {};
-
-        /**
-         * model cache to avoid generating the same one multiple times
-         */
-        var modelCache = {};
-
-        /**
-         * inline model counter
-         */
-        var countInLine = 0;
-
-        return {
-            generateModel: generateModel,
-            getType: getType,
-            resolveReference: resolveReference,
-            generateSampleJson: generateSampleJson,
-            getSampleObj: getSampleObj,
-            clearCache: clearCache
-        };
-
-        /**
-         * clears generated models cache
-         */
-        function clearCache () {
-            objCache = {};
-            modelCache = {};
-        }
-
-        /**
-         * retrieves object definition
-         */
-        function resolveReference (swagger, object) {
-            if (object.$ref) {
-                var parts = object.$ref.replace('#/', '').split('/');
-                object = swagger;
-                for (var i = 0, j = parts.length; i < j; i++) {
-                    object = object[parts[i]];
-                }
-            }
-            return object;
-        }
-
-        /**
-         * determines a property type
-         */
-        function getType (item) {
-            var format = item.format;
-            switch (format) {
-                case 'int32':
-                    format = item.type;
-                    break;
-                case 'int64':
-                    format = 'long';
-                    break;
-            }
-            return format || item.type;
-        }
-
-        /**
-         * retrieves object class name based on $ref
-         */
-        function getClassName (item) {
-            var parts = item.$ref.split('/');
-            return parts[parts.length - 1];
-        }
-
-        /**
-         * generates a sample object (request body or response body)
-         */
-        function getSampleObj (swagger, schema, currentGenerated) {
-            var sample;
-            currentGenerated = currentGenerated || {}; // used to handle circular references
-            if (schema.default || schema.example) {
-                sample = schema.default || schema.example;
-            } else if (schema.properties) {
-                sample = {};
-
-                angular.forEach(schema.properties, function (v, name) {
-                    sample[name] = getSampleObj(swagger, v, currentGenerated);
-                });
-            } else if (schema.$ref) {
-                // complex object
-                var def = resolveReference(swagger, schema);
-
-                if (def) {
-                    if (!objCache[schema.$ref] && !currentGenerated[schema.$ref]) {
-                        // object not in cache
-                        currentGenerated[schema.$ref] = true;
-                        objCache[schema.$ref] = getSampleObj(swagger, def, currentGenerated);
-                    }
-
-                    sample = objCache[schema.$ref] || {};
-                } else {
-                    $log.warn('schema not found', schema.$ref);
-                }
-            } else if (schema.type === 'array') {
-                sample = [getSampleObj(swagger, schema.items, currentGenerated)];
-            } else if (schema.type === 'object') {
-                sample = {};
-            } else {
-                sample = schema.defaultValue || schema.example || getSampleValue(getType(schema));
-            }
-            return sample;
-        }
-
-        /**
-         * generates a sample value for a basic type
-         */
-        function getSampleValue (type) {
-            var result;
-            switch (type) {
-                case 'long':
-                case 'integer':
-                    result = 0;
-                    break;
-                case 'boolean':
-                    result = false;
-                    break;
-                case 'double':
-                case 'number':
-                    result = 0.0;
-                    break;
-                case 'string':
-                    result = 'string';
-                    break;
-                case 'date':
-                    result = (new Date()).toISOString().split('T')[0];
-                    break;
-                case 'date-time':
-                    result = (new Date()).toISOString();
-                    break;
-            }
-            return result;
-        }
-
-        /**
-         * generates a sample JSON string (request body or response body)
-         */
-        function generateSampleJson (swagger, schema) {
-            var json;
-            var obj = getSampleObj(swagger, schema);
-
-            if (obj) {
-                json = angular.toJson(obj, true);
-            }
-
-            return json;
-        }
-
-        /**
-         * generates object's model
-         */
-        function generateModel (swagger, schema, modelName, currentGenerated) {
-            var model = '';
-            var buffer;
-            var subModels;
-            var hasProperties = false;
-            var name;
-            var className;
-            var def;
-            var sub;
-
-            currentGenerated = currentGenerated || {}; // used to handle circular references
-
-            function isRequired (item, name) {
-                return item.required && item.required.indexOf(name) !== -1;
-            }
-
-            if (schema.properties) {
-                modelName = modelName || ('Inline Model' + countInLine++);
-                currentGenerated[modelName] = true;
-                buffer = ['<div><strong>' + modelName + ' {</strong>'];
-                subModels = [];
-
-                angular.forEach(schema.properties, function (property, propertyName) {
-                    hasProperties = true;
-                    buffer.push('<div class="pad"><strong>', propertyName, '</strong> (<span class="type">');
-
-                    // build type
-                    if (property.properties) {
-                        name = 'Inline Model' + countInLine++;
-                        buffer.push(name);
-                        subModels.push(generateModel(swagger, property, name, currentGenerated));
-                    } else if (property.$ref) {
-                        buffer.push(getClassName(property));
-                        subModels.push(generateModel(swagger, property, null, currentGenerated));
-                    } else if (property.type === 'array') {
-                        buffer.push('Array[');
-                        if (property.items.properties) {
-                            name = 'Inline Model' + countInLine++;
-                            buffer.push(name);
-                            subModels.push(generateModel(swagger, property, name, currentGenerated));
-                        } else if (property.items.$ref) {
-                            buffer.push(getClassName(property.items));
-                            subModels.push(generateModel(swagger, property.items, null, currentGenerated));
-                        } else {
-                            buffer.push(getType(property.items));
-                        }
-                        buffer.push(']');
-                    } else {
-                        buffer.push(getType(property));
-                    }
-
-                    buffer.push('</span>');
-
-                    // is required ?
-                    if (!isRequired(schema, propertyName)) {
-                        buffer.push(', ', '<em>optional</em>');
-                    }
-
-                    buffer.push(')');
-
-                    // has description
-                    if (property.description) {
-                        buffer.push(': ', property.description);
-                    }
-
-                    // is enum
-                    if (property.enum) {
-                        buffer.push(' = ', angular.toJson(property.enum).replace(/,/g, ' or '));
-                    }
-
-                    buffer.push(',</div>');
-                });
-
-                if (hasProperties) {
-                    buffer.pop();
-                    buffer.push('</div>');
-                }
-
-                buffer.push('<div><strong>}</strong></div>');
-                buffer.push(subModels.join(''), '</div>');
-                model = buffer.join('');
-            } else if (schema.$ref) {
-                className = getClassName(schema);
-                def = resolveReference(swagger, schema);
-
-                if (currentGenerated[className]) {
-                    return ''; // already generated
-                }
-
-                if (def) {
-                    if (!modelCache[schema.$ref]) {
-                        // cache generated object
-                        modelCache[schema.$ref] = generateModel(swagger, def, className, currentGenerated);
-                    }
-                    currentGenerated[className] = true;
-                    model = modelCache[schema.$ref];
-                }
-            } else if (schema.type === 'array') {
-                buffer = ['<strong>Array ['];
-                sub = '';
-
-                if (schema.items.properties) {
-                    name = 'Inline Model' + countInLine++;
-                    buffer.push(name);
-                    sub = generateModel(swagger, schema.items, name, currentGenerated);
-                } else if (schema.items.$ref) {
-                    buffer.push(getClassName(schema.items));
-                    sub = generateModel(swagger, schema.items, null, currentGenerated);
-                } else {
-                    buffer.push(getType(schema.items));
-                }
-
-                buffer.push(']</strong><br><br>', sub);
-                model = buffer.join('');
-            } else if (schema.type === 'object') {
-                model = '<strong>Inline Model {<br>}</strong>';
-            }
-
-            return model;
-        }
-    }]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular.module('sw.ui')
-    .factory('format', function () {
-        return {
-            fullUrl: fullUrl
-        };
-
-        function fullUrl (response) {
-            var query = '';
-            var config = response.config || {};
-
-            if (config.params) {
-                var parts = [];
-
-                angular.forEach(config.params, function (v, k) {
-                    parts.push(k + '=' + encodeURIComponent(v));
-                });
-
-                if (parts.length > 0) {
-                    query = '?' + parts.join('&');
-                }
-            }
-
-            return config.url + query;
-        }
-    });
-
-'use strict';
-
-angular.module('sw.ui')
-    .factory('data', ["$log", "$rootScope", "$http", "plugins", function ($log, $rootScope, $http, plugins) {
-        var self = {
-            options: {
-                url: null,
-                validatorUrl: null,
-                parser: 'auto',
-                trustedSources: false,
-                proxy: null,
-                errorHandler: null
-            },
-            ui: {
-                grouped: true,
-                descriptions: false,
-                explorer: true,
-                sidenavOpen: false,
-                sidenavLocked: false
-            },
-            model: {
-                info: null,
-                groups: null,
-                operations: null,
-                form: null,
-                hasSecurity: false,
-                securityDefinitions: null,
-                search: {},
-                sop: null
-            },
-            swagger: null,
-            loading: false,
-            setUrl: setUrl
-        };
-
-        function reset () {
-            self.swagger = null;
-
-            self.model = {
-                info: null,
-                groups: null,
-                form: null,
-                security: null,
-                securityDefinitions: null
-            };
-
-            $log.debug('sw:reset');
-            $rootScope.$broadcast('sw:changed');
-        }
-
-        function setUrl (url) {
-            if (self.options.url === url) {
-                return;
-            }
-
-            $log.debug('sw:url', url);
-
-            reset();
-
-            self.options.url = url;
-
-            if (!url) {
-                return;
-            }
-
-            self.loading = true;
-
-            load(url, function (response) {
-                if (response.config.url !== self.options.url) {
-                    return;
-                }
-
-                self.swagger = response.data;
-                plugins
-                    .execute(plugins.BEFORE_PARSE, url, self.swagger)
-                    .then(function () {
-                        var type = (response.headers()['content-type'] || 'application/json').split(';')[0];
-                        loaded(url, type);
-                        self.loading = false;
-                    })
-                    .catch(onError);
-            }, onError);
-        }
-
-        function load (url, callback, onError) {
-            var options = {
-                method: 'GET',
-                url: url
-            };
-
-            plugins
-                .execute(plugins.BEFORE_LOAD, options)
-                .then(function () {
-                    $http(options).then(callback, onError);
-                })
-                .catch(onError);
-        }
-
-        function loaded (url, type) {
-            var parseResult = {};
-            var swaggerCopy = angular.copy(self.swagger);
-
-            $log.debug('sw:loaded');
-
-            plugins
-                .execute(
-                    plugins.PARSE,
-                    self.options.parser,
-                    url,
-                    type,
-                    swaggerCopy,
-                    self.options.trustedSources,
-                    parseResult)
-                .then(function (executed) {
-                    if (executed) {
-                        parsed(parseResult);
-                    } else {
-                        onError({
-                            message: 'no parser found'
-                        });
-                    }
-                })
-                .catch(onError);
-        }
-
-        function parsed (parseResult) {
-            plugins
-                .execute(plugins.BEFORE_DISPLAY, parseResult)
-                .then(function () {
-                    self.model.info = parseResult.info;
-                    self.model.form = parseResult.form;
-                    self.model.groups = parseResult.resources;
-                    self.model.operations = parseResult.info.operations;
-                    self.model.securityDefinitions = parseResult.securityDefinitions;
-                    self.model.hasSecurity = hasSecurity(self.swagger);
-
-                    $log.debug('sw:parsed');
-                    $rootScope.$broadcast('sw:changed');
-                })
-                .catch(onError);
-        }
-
-        function hasSecurity (swagger) {
-            return Object.keys(swagger.securityDefinitions || {}).length;
-        }
-
-        function onError (error) {
-            self.loading = false;
-
-            if (angular.isFunction(self.options.errorHandler)) {
-                self.options.errorHandler(error);
-            }
-        }
-
-        return self;
-    }])
-;
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular
-    .module('sw.ui')
-    .factory('client', ["$q", "$window", "$http", "$log", "plugins", function ($q, $window, $http, $log, plugins) {
-        // var reqCnt = 1;
-
-        return {
-            configure: configure,
-            send: send,
-            base: base
-        };
-
-        /**
-         * Send API explorer request
-         */
-        function send (swagger, operation, values, mock) {
-            var deferred = $q.defer();
-            var baseUrl = base(swagger);
-            var options = configure(operation, values, baseUrl);
-
-            function done (response) {
-                if ($window.performance) {
-                    var items = $window.performance.getEntriesByType('resource');
-
-                    response.timing = timing(items[items.length - 1]);
-
-                    $log.debug('sw:measure', items[items.length - 1], response.timing);
-                }
-
-                // execute modules
-                plugins
-                    .execute(plugins.AFTER_EXPLORER_LOAD, response)
-                    .then(function () {
-                        deferred.resolve(response);
-                    });
-            }
-
-            function time (e, s) {
-                if (s && e) {
-                    return e - s;
-                } else {
-                    return false;
-                }
-            }
-
-            function timing (timing) {
-                return [
-                    ['redirect', time(timing.redirectEnd, timing.redirectStart)],
-                    ['dns', time(timing.domainLookupEnd, timing.domainLookupStart)],
-                    ['connect', time(timing.connectEnd, timing.connectStart)],
-                    ['request', time(timing.responseStart, timing.requestStart)],
-                    ['response', time(timing.responseEnd, timing.responseStart)],
-                    ['fetch', time(timing.responseEnd, timing.fetchStart)]
-                ];
-            }
-
-            // execute modules
-            plugins
-                .execute(plugins.BEFORE_EXPLORER_LOAD, options)
-                .then(function () {
-                    if (mock) {
-                        deferred.resolve(options);
-                    } else {
-                        checkMixedContent(options).then(function () {
-                            // send request
-                            // $window.performance.mark('mark_start_xhr');
-                            $http(options).then(done, done);
-                        }, done);
-                    }
-                });
-
-            return deferred.promise;
-        }
-
-        function configure (operation, values, baseUrl) {
-            var path = operation.path;
-            var query = {};
-            var headers = {};
-            var body = null;
-
-            // build request parameters
-            angular.forEach(operation.parameters, function (param) {
-                // TODO manage 'collectionFormat' (csv etc.) !!
-                var value = values[param.name];
-
-                switch (param.in) {
-                    case 'query':
-                        if (value) {
-                            query[param.name] = value;
-                        }
-                        break;
-                    case 'path':
-                        path = path.replace('{' + param.name + '}', encodeURIComponent(value));
-                        break;
-                    case 'header':
-                        if (value) {
-                            headers[param.name] = value;
-                        }
-                        break;
-                    case 'formData':
-                        body = body || new $window.FormData();
-                        if (value) {
-                            // make browser defining it by himself
-                            values.contentType = (param.type === 'file') ? undefined : values.contentType;
-                            body.append(param.name, value);
-                        }
-                        break;
-                    case 'body':
-                        body = body || value;
-                        break;
-                }
-            });
-
-            // add headers
-            headers.accept = values.responseType;
-            headers['content-type'] = body ? values.contentType : 'text/plain';
-
-            return {
-                method: operation.httpMethod,
-                url: baseUrl + path,
-                headers: headers,
-                data: body,
-                params: query
-            };
-        }
-
-        function base (swaggerInfo) {
-            return [
-                swaggerInfo.scheme,
-                '://',
-                swaggerInfo.host,
-                (swaggerInfo.basePath === '/' ? '' : swaggerInfo.basePath) || ''
-            ].join('');
-        }
-
-        function protocol (url) {
-            return angular.element('<a href="' + url + '"></a>')[0].protocol.replace(':');
-        }
-
-        function checkMixedContent (options) {
-            var deferred = $q.defer();
-
-            if ((protocol($window.location.href) === 'https') && (protocol(options.url) === 'http')) {
-                deferred.reject({config: options, status: -1, statusText: 'HTTPS mixed with HTTP content'});
-            } else {
-                deferred.resolve();
-            }
-
-            return deferred.promise;
-        }
     }]);
 
 'use strict';
@@ -2870,6 +2218,658 @@ angular.module('sw.ui.md')
         }
     }]);
 
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular.module('sw.ui', [
+    'sw.plugins'
+]);
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular
+    .module('sw.ui')
+    .factory('model', ["$log", function ($log) {
+        /**
+         * sample object cache to avoid generating the same one multiple times
+         */
+        var objCache = {};
+
+        /**
+         * model cache to avoid generating the same one multiple times
+         */
+        var modelCache = {};
+
+        /**
+         * inline model counter
+         */
+        var countInLine = 0;
+
+        return {
+            generateModel: generateModel,
+            getType: getType,
+            resolveReference: resolveReference,
+            generateSampleJson: generateSampleJson,
+            getSampleObj: getSampleObj,
+            clearCache: clearCache
+        };
+
+        /**
+         * clears generated models cache
+         */
+        function clearCache () {
+            objCache = {};
+            modelCache = {};
+        }
+
+        /**
+         * retrieves object definition
+         */
+        function resolveReference (swagger, object) {
+            if (object.$ref) {
+                var parts = object.$ref.replace('#/', '').split('/');
+                object = swagger;
+                for (var i = 0, j = parts.length; i < j; i++) {
+                    object = object[parts[i]];
+                }
+            }
+            return object;
+        }
+
+        /**
+         * determines a property type
+         */
+        function getType (item) {
+            var format = item.format;
+            switch (format) {
+                case 'int32':
+                    format = item.type;
+                    break;
+                case 'int64':
+                    format = 'long';
+                    break;
+            }
+            return format || item.type;
+        }
+
+        /**
+         * retrieves object class name based on $ref
+         */
+        function getClassName (item) {
+            var parts = item.$ref.split('/');
+            return parts[parts.length - 1];
+        }
+
+        /**
+         * generates a sample object (request body or response body)
+         */
+        function getSampleObj (swagger, schema, currentGenerated) {
+            var sample;
+            currentGenerated = currentGenerated || {}; // used to handle circular references
+            if (schema.default || schema.example) {
+                sample = schema.default || schema.example;
+            } else if (schema.properties) {
+                sample = {};
+
+                angular.forEach(schema.properties, function (v, name) {
+                    sample[name] = getSampleObj(swagger, v, currentGenerated);
+                });
+            } else if (schema.$ref) {
+                // complex object
+                var def = resolveReference(swagger, schema);
+
+                if (def) {
+                    if (!objCache[schema.$ref] && !currentGenerated[schema.$ref]) {
+                        // object not in cache
+                        currentGenerated[schema.$ref] = true;
+                        objCache[schema.$ref] = getSampleObj(swagger, def, currentGenerated);
+                    }
+
+                    sample = objCache[schema.$ref] || {};
+                } else {
+                    $log.warn('schema not found', schema.$ref);
+                }
+            } else if (schema.type === 'array') {
+                sample = [getSampleObj(swagger, schema.items, currentGenerated)];
+            } else if (schema.type === 'object') {
+                sample = {};
+            } else {
+                sample = schema.defaultValue || schema.example || getSampleValue(getType(schema));
+            }
+            return sample;
+        }
+
+        /**
+         * generates a sample value for a basic type
+         */
+        function getSampleValue (type) {
+            var result;
+            switch (type) {
+                case 'long':
+                case 'integer':
+                    result = 0;
+                    break;
+                case 'boolean':
+                    result = false;
+                    break;
+                case 'double':
+                case 'number':
+                    result = 0.0;
+                    break;
+                case 'string':
+                    result = 'string';
+                    break;
+                case 'date':
+                    result = (new Date()).toISOString().split('T')[0];
+                    break;
+                case 'date-time':
+                    result = (new Date()).toISOString();
+                    break;
+            }
+            return result;
+        }
+
+        /**
+         * generates a sample JSON string (request body or response body)
+         */
+        function generateSampleJson (swagger, schema) {
+            var json;
+            var obj = getSampleObj(swagger, schema);
+
+            if (obj) {
+                json = angular.toJson(obj, true);
+            }
+
+            return json;
+        }
+
+        /**
+         * generates object's model
+         */
+        function generateModel (swagger, schema, modelName, currentGenerated) {
+            var model = '';
+            var buffer;
+            var subModels;
+            var hasProperties = false;
+            var name;
+            var className;
+            var def;
+            var sub;
+
+            currentGenerated = currentGenerated || {}; // used to handle circular references
+
+            function isRequired (item, name) {
+                return item.required && item.required.indexOf(name) !== -1;
+            }
+
+            if (schema.properties) {
+                modelName = modelName || ('Inline Model' + countInLine++);
+                currentGenerated[modelName] = true;
+                buffer = ['<div><strong>' + modelName + ' {</strong>'];
+                subModels = [];
+
+                angular.forEach(schema.properties, function (property, propertyName) {
+                    hasProperties = true;
+                    buffer.push('<div class="pad"><strong>', propertyName, '</strong> (<span class="type">');
+
+                    // build type
+                    if (property.properties) {
+                        name = 'Inline Model' + countInLine++;
+                        buffer.push(name);
+                        subModels.push(generateModel(swagger, property, name, currentGenerated));
+                    } else if (property.$ref) {
+                        buffer.push(getClassName(property));
+                        subModels.push(generateModel(swagger, property, null, currentGenerated));
+                    } else if (property.type === 'array') {
+                        buffer.push('Array[');
+                        if (property.items.properties) {
+                            name = 'Inline Model' + countInLine++;
+                            buffer.push(name);
+                            subModels.push(generateModel(swagger, property, name, currentGenerated));
+                        } else if (property.items.$ref) {
+                            buffer.push(getClassName(property.items));
+                            subModels.push(generateModel(swagger, property.items, null, currentGenerated));
+                        } else {
+                            buffer.push(getType(property.items));
+                        }
+                        buffer.push(']');
+                    } else {
+                        buffer.push(getType(property));
+                    }
+
+                    buffer.push('</span>');
+
+                    // is required ?
+                    if (!isRequired(schema, propertyName)) {
+                        buffer.push(', ', '<em>optional</em>');
+                    }
+
+                    buffer.push(')');
+
+                    // has description
+                    if (property.description) {
+                        buffer.push(': ', property.description);
+                    }
+
+                    // is enum
+                    if (property.enum) {
+                        buffer.push(' = ', angular.toJson(property.enum).replace(/,/g, ' or '));
+                    }
+
+                    buffer.push(',</div>');
+                });
+
+                if (hasProperties) {
+                    buffer.pop();
+                    buffer.push('</div>');
+                }
+
+                buffer.push('<div><strong>}</strong></div>');
+                buffer.push(subModels.join(''), '</div>');
+                model = buffer.join('');
+            } else if (schema.$ref) {
+                className = getClassName(schema);
+                def = resolveReference(swagger, schema);
+
+                if (currentGenerated[className]) {
+                    return ''; // already generated
+                }
+
+                if (def) {
+                    if (!modelCache[schema.$ref]) {
+                        // cache generated object
+                        modelCache[schema.$ref] = generateModel(swagger, def, className, currentGenerated);
+                    }
+                    currentGenerated[className] = true;
+                    model = modelCache[schema.$ref];
+                }
+            } else if (schema.type === 'array') {
+                buffer = ['<strong>Array ['];
+                sub = '';
+
+                if (schema.items.properties) {
+                    name = 'Inline Model' + countInLine++;
+                    buffer.push(name);
+                    sub = generateModel(swagger, schema.items, name, currentGenerated);
+                } else if (schema.items.$ref) {
+                    buffer.push(getClassName(schema.items));
+                    sub = generateModel(swagger, schema.items, null, currentGenerated);
+                } else {
+                    buffer.push(getType(schema.items));
+                }
+
+                buffer.push(']</strong><br><br>', sub);
+                model = buffer.join('');
+            } else if (schema.type === 'object') {
+                model = '<strong>Inline Model {<br>}</strong>';
+            }
+
+            return model;
+        }
+    }]);
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular.module('sw.ui')
+    .factory('format', function () {
+        return {
+            fullUrl: fullUrl
+        };
+
+        function fullUrl (response) {
+            var query = '';
+            var config = response.config || {};
+
+            if (config.params) {
+                var parts = [];
+
+                angular.forEach(config.params, function (v, k) {
+                    parts.push(k + '=' + encodeURIComponent(v));
+                });
+
+                if (parts.length > 0) {
+                    query = '?' + parts.join('&');
+                }
+            }
+
+            return config.url + query;
+        }
+    });
+
+'use strict';
+
+angular.module('sw.ui')
+    .factory('data', ["$log", "$rootScope", "$http", "plugins", function ($log, $rootScope, $http, plugins) {
+        var self = {
+            options: {
+                url: null,
+                validatorUrl: null,
+                parser: 'auto',
+                trustedSources: false,
+                proxy: null,
+                errorHandler: null
+            },
+            ui: {
+                grouped: true,
+                descriptions: false,
+                explorer: true,
+                sidenavOpen: false,
+                sidenavLocked: false
+            },
+            model: {
+                info: null,
+                groups: null,
+                operations: null,
+                form: null,
+                hasSecurity: false,
+                securityDefinitions: null,
+                search: {},
+                sop: null
+            },
+            swagger: null,
+            loading: false,
+            setUrl: setUrl
+        };
+
+        function reset () {
+            self.swagger = null;
+
+            self.model = {
+                info: null,
+                groups: null,
+                form: null,
+                security: null,
+                securityDefinitions: null
+            };
+
+            $log.debug('sw:reset');
+            $rootScope.$broadcast('sw:changed');
+        }
+
+        function setUrl (url) {
+            if (self.options.url === url) {
+                return;
+            }
+
+            $log.debug('sw:url', url);
+
+            reset();
+
+            self.options.url = url;
+
+            if (!url) {
+                return;
+            }
+
+            self.loading = true;
+
+            load(url, function (response) {
+                if (response.config.url !== self.options.url) {
+                    return;
+                }
+
+                self.swagger = response.data;
+                plugins
+                    .execute(plugins.BEFORE_PARSE, url, self.swagger)
+                    .then(function () {
+                        var type = (response.headers()['content-type'] || 'application/json').split(';')[0];
+                        loaded(url, type);
+                        self.loading = false;
+                    })
+                    .catch(onError);
+            }, onError);
+        }
+
+        function load (url, callback, onError) {
+            var options = {
+                method: 'GET',
+                url: url
+            };
+
+            plugins
+                .execute(plugins.BEFORE_LOAD, options)
+                .then(function () {
+                    $http(options).then(callback, onError);
+                })
+                .catch(onError);
+        }
+
+        function loaded (url, type) {
+            var parseResult = {};
+            var swaggerCopy = angular.copy(self.swagger);
+
+            $log.debug('sw:loaded');
+
+            plugins
+                .execute(
+                    plugins.PARSE,
+                    self.options.parser,
+                    url,
+                    type,
+                    swaggerCopy,
+                    self.options.trustedSources,
+                    parseResult)
+                .then(function (executed) {
+                    if (executed) {
+                        parsed(parseResult);
+                    } else {
+                        onError({
+                            message: 'no parser found'
+                        });
+                    }
+                })
+                .catch(onError);
+        }
+
+        function parsed (parseResult) {
+            plugins
+                .execute(plugins.BEFORE_DISPLAY, parseResult)
+                .then(function () {
+                    self.model.info = parseResult.info;
+                    self.model.form = parseResult.form;
+                    self.model.groups = parseResult.resources;
+                    self.model.operations = parseResult.info.operations;
+                    self.model.securityDefinitions = parseResult.securityDefinitions;
+                    self.model.hasSecurity = hasSecurity(self.swagger);
+
+                    $log.debug('sw:parsed');
+                    $rootScope.$broadcast('sw:changed');
+                })
+                .catch(onError);
+        }
+
+        function hasSecurity (swagger) {
+            return Object.keys(swagger.securityDefinitions || {}).length;
+        }
+
+        function onError (error) {
+            self.loading = false;
+
+            if (angular.isFunction(self.options.errorHandler)) {
+                self.options.errorHandler(error);
+            }
+        }
+
+        return self;
+    }])
+;
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular
+    .module('sw.ui')
+    .factory('client', ["$q", "$window", "$http", "$log", "plugins", function ($q, $window, $http, $log, plugins) {
+        // var reqCnt = 1;
+
+        return {
+            configure: configure,
+            send: send,
+            base: base
+        };
+
+        /**
+         * Send API explorer request
+         */
+        function send (swagger, operation, values, mock) {
+            var deferred = $q.defer();
+            var baseUrl = base(swagger);
+            var options = configure(operation, values, baseUrl);
+
+            function done (response) {
+                if ($window.performance) {
+                    var items = $window.performance.getEntriesByType('resource');
+
+                    response.timing = timing(items[items.length - 1]);
+
+                    $log.debug('sw:measure', items[items.length - 1], response.timing);
+                }
+
+                // execute modules
+                plugins
+                    .execute(plugins.AFTER_EXPLORER_LOAD, response)
+                    .then(function () {
+                        deferred.resolve(response);
+                    });
+            }
+
+            function time (e, s) {
+                if (s && e) {
+                    return e - s;
+                } else {
+                    return false;
+                }
+            }
+
+            function timing (timing) {
+                return [
+                    ['redirect', time(timing.redirectEnd, timing.redirectStart)],
+                    ['dns', time(timing.domainLookupEnd, timing.domainLookupStart)],
+                    ['connect', time(timing.connectEnd, timing.connectStart)],
+                    ['request', time(timing.responseStart, timing.requestStart)],
+                    ['response', time(timing.responseEnd, timing.responseStart)],
+                    ['fetch', time(timing.responseEnd, timing.fetchStart)]
+                ];
+            }
+
+            // execute modules
+            plugins
+                .execute(plugins.BEFORE_EXPLORER_LOAD, options)
+                .then(function () {
+                    if (mock) {
+                        deferred.resolve(options);
+                    } else {
+                        checkMixedContent(options).then(function () {
+                            // send request
+                            // $window.performance.mark('mark_start_xhr');
+                            $http(options).then(done, done);
+                        }, done);
+                    }
+                });
+
+            return deferred.promise;
+        }
+
+        function configure (operation, values, baseUrl) {
+            var path = operation.path;
+            var query = {};
+            var headers = {};
+            var body = null;
+
+            // build request parameters
+            angular.forEach(operation.parameters, function (param) {
+                // TODO manage 'collectionFormat' (csv etc.) !!
+                var value = values[param.name];
+
+                switch (param.in) {
+                    case 'query':
+                        if (value) {
+                            query[param.name] = value;
+                        }
+                        break;
+                    case 'path':
+                        path = path.replace('{' + param.name + '}', encodeURIComponent(value));
+                        break;
+                    case 'header':
+                        if (value) {
+                            headers[param.name] = value;
+                        }
+                        break;
+                    case 'formData':
+                        body = body || new $window.FormData();
+                        if (value) {
+                            // make browser defining it by himself
+                            values.contentType = (param.type === 'file') ? undefined : values.contentType;
+                            body.append(param.name, value);
+                        }
+                        break;
+                    case 'body':
+                        body = body || value;
+                        break;
+                }
+            });
+
+            // add headers
+            headers.accept = values.responseType;
+            headers['content-type'] = body ? values.contentType : 'text/plain';
+
+            return {
+                method: operation.httpMethod,
+                url: baseUrl + path,
+                headers: headers,
+                data: body,
+                params: query
+            };
+        }
+
+        function base (swaggerInfo) {
+            return [
+                swaggerInfo.scheme,
+                '://',
+                swaggerInfo.host,
+                (swaggerInfo.basePath === '/' ? '' : swaggerInfo.basePath) || ''
+            ].join('');
+        }
+
+        function protocol (url) {
+            return angular.element('<a href="' + url + '"></a>')[0].protocol.replace(':');
+        }
+
+        function checkMixedContent (options) {
+            var deferred = $q.defer();
+
+            if ((protocol($window.location.href) === 'https') && (protocol(options.url) === 'http')) {
+                deferred.reject({config: options, status: -1, statusText: 'HTTPS mixed with HTTP content'});
+            } else {
+                deferred.resolve();
+            }
+
+            return deferred.promise;
+        }
+    }]);
+
 'use strict';
 
 angular.module('sw.ui.directives', []);
@@ -3069,7 +3069,7 @@ $templateCache.put("modules/detail/response.html","<div class=\"md-body-1\" layo
 $templateCache.put("modules/group/group.html","<div md-whiteframe=\"2\"> <md-toolbar ng-click=\"vm.toggleGroup(group, $event)\" tabindex=\"-1\" ng-class=\"{\'md-whiteframe-2dp\': group.open}\" class=\"md-accent\"> <div class=\"md-toolbar-tools\"> <span class=\"md-title\" flex ng-bind=\"::group.name\"></span> <md-button ng-click=\"toggleApi(group, $event)\" aria-label=\"toggle\" class=\"md-icon-button md-accent md-hue-3\"> <md-icon ng-bind=\"group.open ? \'keyboard_arrow_up\' : \'keyboard_arrow_down\'\"></md-icon> </md-button> </div> </md-toolbar> <div ng-show=\"group.open && group.description\" style=\"padding-bottom: 0\" layout-padding> <div style=\"padding-bottom: 0\" ng-bind-html=\"::group.description\" class=\"sum-short-md markdown-body md-body-2\"></div> </div> <div ng-show=\"group.open\" style=\"padding: 13px\"> <div ng-class=\"{\'sum-selected\': vm.data.model.sop === op}\" ng-repeat=\"op in group.operations | filter:vm.data.model.search:false track by op.id\" ng-include=\"\'modules/operation/operation.html\'\"></div> </div> </div>");
 $templateCache.put("modules/meta/meta.html","<div layout=\"row\" layout-wrap ng-if=\"!vm.data.loading\" ng-controller=\"MetaController as vm\"> <div ng-repeat=\"m in vm.meta\" ng-if=\"m[2]\" flex-xs=\"100\" layout=\"row\" flex-sm=\"{{sidenavLockedOpen ? 100 : 50}}\" flex-md=\"{{sidenavLockedOpen ? 50 : 33}}\" flex-lg=\"{{sidenavLockedOpen ? 33 : 25}}\" flex-xl=\"{{sidenavLockedOpen ? 25 : 20}}\"> <md-list flex> <md-list-item class=\"md-2-line\" style=\"overflow: hidden\" layout=\"row\"> <md-icon class=\"md-avatar-icon\" ng-bind=\"m[1]\"></md-icon> <div class=\"md-list-item-text\" flex layout=\"column\"> <span ng-if=\"m[0]\" ng-bind=\"m[0]\">Contact</span> <p style=\"overflow: hidden; text-overflow: ellipsis; line-height: 14px\" ng-if=\"m[0] && !m[3]\" ng-bind=\"m[2]\" flex></p> <p ng-if=\"m[0] && m[3]\" flex> <a style=\"display: block; text-overflow: ellipsis; padding-left: 5px; text-align: left\" class=\"md-button md-primary\" ng-bind=\"m[2]\" ng-href=\"{{m[3]}}\" ng-click=\"m[4]($event, m[2])\" target=\"_blank\"></a> </p> <p ng-if=\"!m[0]\"> <a style=\"margin-top: 4px; display: inline-flex; height: 30px\" target=\"_blank\" ng-href=\"{{m[2]}}\"> <img ng-src=\"{{m[3]}}\" style=\"width: 97px; height: 30px\"/> </a> </p> </div> </md-list-item> </md-list> </div> </div>");
 $templateCache.put("modules/operation/operation.html","<md-divider ng-if=\"!vm.data.ui.grouped\"></md-divider> <div id=\"{{op.operationId}}\" ng-style=\"{\'padding-top\': (!vm.data.ui.grouped || (vm.data.ui.descriptions && !$first)) ? \'6px\' : \'0\', \'padding-bottom\': (!vm.data.ui.grouped || (vm.data.ui.descriptions && !$last)) ? \'6px\' : \'0\'}\" ng-class=\"::{\'sum-deprecated\': op.deprecated}\" ng-click=\"vm.selectOperation(op, $event)\" tabindex=\"-1\"> <div layout=\"row\"> <md-button ng-class=\"::vm.theme[op.httpMethod]\" ng-click=\"vm.selectOperation(op, $event);\" aria-label=\"method\" class=\"sum-http-method md-raised\" ng-bind=\"::op.httpMethod\"></md-button> <div flex class=\"sum-path\" ng-bind=\"::op.path\"></div> </div> <div style=\"padding-left: 76px; line-height: 16px\" ng-show=\"vm.data.ui.descriptions\" class=\"md-body-2\" ng-bind=\"::op.summary\"></div> </div> <md-divider ng-if=\"vm.data.ui.grouped && (vm.data.ui.descriptions && !$last)\"></md-divider>");
-$templateCache.put("modules/toolbar/toolbar.html","<md-toolbar md-whiteframe=\"2\" ng-controller=\"ToolbarController as vm\" style=\"max-height: 64px\"> <div class=\"md-toolbar-tools\" ng-if=\"vm.loading\" style=\"padding-left: 0\"> <md-progress-circular class=\"md-accent md-hue-1\" md-mode=\"indeterminate\" md-diameter=\"56\"></md-progress-circular> <span flex>Loading&hellip;</span> </div> <div class=\"md-toolbar-tools\" ng-show=\"!vm.loading\"> <toolbar-edit class=\"sum-delay md-toolbar-tools\" ng-model=\"vm.editUrl\" ng-changed=\"vm.editedUrl\" display-title=\"vm.data.model.info.title\" ng-show=\"vm.searchOpened && vm.$mdMedia(\'gt-sm\') || !vm.searchOpened\" flex style=\"padding-left: 0; padding-right: 0\"></toolbar-edit> <span flex ng-show=\"vm.searchOpened\"></span> <toolbar-search ng-show=\"!vm.loading\" ng-model=\"vm.search\" ng-changed=\"vm.searchUpdated\" open=\"vm.searchOpened\"></toolbar-search> <md-button hide show-gt-sm aria-label=\"expand\" ng-if=\"vm.ui.grouped\" ng-click=\"vm.toggleGroups(true)\" class=\"md-primary md-icon-button\"> <md-icon class=\"md-primary\">keyboard_arrow_down</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"collapse\" ng-if=\"vm.ui.grouped\" ng-click=\"vm.toggleGroups(false)\" class=\"md-primary md-icon-button\"> <md-icon>keyboard_arrow_up</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"view\" ng-click=\"vm.ui.grouped = !vm.ui.grouped\" class=\"md-primary md-icon-button\"> <md-icon ng-bind=\"vm.ui.grouped ? \'view_comfy\' : \'view_column\'\"></md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"description\" ng-click=\"vm.ui.descriptions = !vm.ui.descriptions\" class=\"md-primary md-icon-button\"> <md-icon ng-bind=\"vm.ui.descriptions ? \'speaker_notes_off\' : \'speaker_notes\'\"></md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"proxy\" ng-click=\"vm.showProxy($event)\" ng-class=\"{\'md-warn md-hue-1\': proxy.url}\" class=\"md-primary md-icon-button\"> <md-icon>security</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"security\" ng-click=\"vm.showSecurity($event)\" ng-if=\"vm.data.model.hasSecurity\" class=\"md-primary md-icon-button\"> <md-icon>vpn_key</md-icon> </md-button> <md-menu> <md-button hide-gt-sm aria-label=\"menu\" ng-click=\"$mdOpenMenu($event)\" class=\"md-primary md-icon-button\"> <md-icon>more_vert</md-icon> </md-button> <md-menu-content> <md-menu-item ng-if=\"grouped\"> <md-button class=\"md-primary\" ng-click=\"vm.toggleGroups(true)\"> <md-icon>keyboard_arrow_down</md-icon> Expand </md-button> </md-menu-item> <md-menu-item ng-if=\"grouped\"> <md-button class=\"md-primary\" ng-click=\"vm.toggleGroups(false)\"> <md-icon>keyboard_arrow_up</md-icon> Collapse </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.ui.grouped = !vm.ui.grouped\"> <md-icon ng-bind=\"vm.ui.grouped ? \'view_comfy\' : \'view_column\'\"></md-icon> Switch view </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.ui.descriptions = !vm.ui.descriptions\"> <md-icon ng-bind=\"vm.ui.descriptions ? \'speaker_notes_off\' : \'speaker_notes\'\"></md-icon> Descriptions </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.showProxy($event)\" ng-class=\"{\'md-warn\': proxy.url}\"> <md-icon>security</md-icon> Proxy </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.showSecurity($event)\" ng-if=\"vm.data.model.hasSecurity\"> <md-icon>vpn_key</md-icon> Security </md-button> </md-menu-item> </md-menu-content> </md-menu> </div> </md-toolbar>");
+$templateCache.put("modules/toolbar/toolbar.html","<md-toolbar md-whiteframe=\"2\" ng-controller=\"ToolbarController as vm\" style=\"max-height: 64px\"> <div class=\"md-toolbar-tools\" ng-if=\"vm.loading\" style=\"padding-left: 0\"> <md-progress-circular class=\"md-accent md-hue-1\" md-mode=\"indeterminate\" md-diameter=\"56\"></md-progress-circular> <span flex>Loading&hellip;</span> </div> <div class=\"md-toolbar-tools\" ng-show=\"!vm.loading\"> <img src=\"./images/t-f-new.png\"/> <toolbar-edit class=\"sum-delay md-toolbar-tools\" ng-model=\"vm.editUrl\" ng-changed=\"vm.editedUrl\" display-title=\"vm.data.model.info.title\" ng-show=\"vm.searchOpened && vm.$mdMedia(\'gt-sm\') || !vm.searchOpened\" flex style=\"padding-left: 0; padding-right: 0\"></toolbar-edit> <span flex ng-show=\"vm.searchOpened\"></span> <toolbar-search ng-show=\"!vm.loading\" ng-model=\"vm.search\" ng-changed=\"vm.searchUpdated\" open=\"vm.searchOpened\"></toolbar-search> <md-button hide show-gt-sm aria-label=\"expand\" ng-if=\"vm.ui.grouped\" ng-click=\"vm.toggleGroups(true)\" class=\"md-primary md-icon-button\"> <md-icon class=\"md-primary\">keyboard_arrow_down</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"collapse\" ng-if=\"vm.ui.grouped\" ng-click=\"vm.toggleGroups(false)\" class=\"md-primary md-icon-button\"> <md-icon>keyboard_arrow_up</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"view\" ng-click=\"vm.ui.grouped = !vm.ui.grouped\" class=\"md-primary md-icon-button\"> <md-icon ng-bind=\"vm.ui.grouped ? \'view_comfy\' : \'view_column\'\"></md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"description\" ng-click=\"vm.ui.descriptions = !vm.ui.descriptions\" class=\"md-primary md-icon-button\"> <md-icon ng-bind=\"vm.ui.descriptions ? \'speaker_notes_off\' : \'speaker_notes\'\"></md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"proxy\" ng-click=\"vm.showProxy($event)\" ng-class=\"{\'md-warn md-hue-1\': proxy.url}\" class=\"md-primary md-icon-button\"> <md-icon>security</md-icon> </md-button> <md-button hide show-gt-sm aria-label=\"security\" ng-click=\"vm.showSecurity($event)\" ng-if=\"vm.data.model.hasSecurity\" class=\"md-primary md-icon-button\"> <md-icon>vpn_key</md-icon> </md-button> <md-menu> <md-button hide-gt-sm aria-label=\"menu\" ng-click=\"$mdOpenMenu($event)\" class=\"md-primary md-icon-button\"> <md-icon>more_vert</md-icon> </md-button> <md-menu-content> <md-menu-item ng-if=\"grouped\"> <md-button class=\"md-primary\" ng-click=\"vm.toggleGroups(true)\"> <md-icon>keyboard_arrow_down</md-icon> Expand </md-button> </md-menu-item> <md-menu-item ng-if=\"grouped\"> <md-button class=\"md-primary\" ng-click=\"vm.toggleGroups(false)\"> <md-icon>keyboard_arrow_up</md-icon> Collapse </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.ui.grouped = !vm.ui.grouped\"> <md-icon ng-bind=\"vm.ui.grouped ? \'view_comfy\' : \'view_column\'\"></md-icon> Switch view </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.ui.descriptions = !vm.ui.descriptions\"> <md-icon ng-bind=\"vm.ui.descriptions ? \'speaker_notes_off\' : \'speaker_notes\'\"></md-icon> Descriptions </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.showProxy($event)\" ng-class=\"{\'md-warn\': proxy.url}\"> <md-icon>security</md-icon> Proxy </md-button> </md-menu-item> <md-menu-item> <md-button class=\"md-primary\" ng-click=\"vm.showSecurity($event)\" ng-if=\"vm.data.model.hasSecurity\"> <md-icon>vpn_key</md-icon> Security </md-button> </md-menu-item> </md-menu-content> </md-menu> </div> </md-toolbar>");
 $templateCache.put("directives/toolbar-edit/toolbar-edit.html","<md-button ng-click=\"toggle()\" class=\"md-primary md-icon-button\"> <md-icon>edit</md-icon> </md-button> <form ng-show=\"init && open\" ng-submit=\"blur()\" layout=\"row\" flex><input flex ng-show=\"init && open\" ng-model=\"ngModel\" type=\"text\" class=\"md-input\" ng-blur=\"blur()\"/></form> <span ng-show=\"init && !open\" ng-click=\"toggle()\" ng-bind=\"displayTitle\" tabindex=\"-1\"></span>");
 $templateCache.put("directives/toolbar-search/toolbar-search.html","<md-button ng-click=\"open = true; focus()\" class=\"md-primary md-icon-button\"> <md-icon>search</md-icon> </md-button> <input ng-show=\"open\" ng-model=\"ngModel\" type=\"text\" class=\"md-input\" ng-class=\"{\'input-show-hide\': init}\" ng-model-options=\"{debounce: {default: 200, blur: 0}}\"/> <md-button ng-show=\"open\" ng-click=\"ngModel = \'\'; open = false\" class=\"md-icon-button\" ng-class=\"{\'input-show-hide\': init}\"> <md-icon>close</md-icon> </md-button>");
 $templateCache.put("modules/detail/request/parameter.html","<div layout=\"column\"> <md-input-container ng-if=\"vm.data.ui.explorer && (param.in != \'body\') && (param.subtype == \'file\')\"> <label ng-bind=\"param.name + (param.required ? \' (required)\' : \'\')\"></label> <input type=\"file\" file-input ng-model=\"vm.form[param.name]\" placeholder=\"{{param.required?\'(required)\':\'\'}}\" ng-required=\"param.required\"/> </md-input-container> <md-input-container ng-if=\"vm.data.ui.explorer && (param.in != \'body\') && (param.subtype != \'enum\') && (param.subtype != \'file\')\"> <label ng-bind=\"param.name + (param.required ? \' (required)\' : \'\')\"></label> <input type=\"text\" ng-model=\"vm.form[param.name]\" ng-required=\"param.required\"/> </md-input-container> <md-input-container ng-if=\"vm.data.ui.explorer && (param.in == \'body\')\"> <label ng-bind=\"param.name + (param.required ? \' (required)\' : \'\')\"></label> <textarea ng-model=\"vm.form[param.name]\" ng-required=\"param.required\"></textarea> </md-input-container> <md-input-container ng-if=\"vm.data.ui.explorer && (param.subtype == \'enum\')\"> <label ng-bind=\"param.name + (param.required ? \' (required)\' : \'\')\"></label> <md-select class=\"sum-no-margin\" ng-required=\"param.required\" ng-model=\"vm.form[param.name]\"> <md-option ng-repeat=\"value in param.enum\" value=\"{{value}}\" ng-selected=\"param.default == value\" ng-bind=\"value + (param.default == value ? \' (default)\' : \'\')\"></md-option> </md-select> </md-input-container> <div layout=\"row\" style=\"padding-right: 4px\"> <div class=\"md-body-1 sum-param-info markdown-body\" flex ng-bind-html=\"param.description\" truncate style=\"padding-left: 2px; padding-right: 8px\"></div> <div class=\"md-body-1 sum-param-info\" layout=\"column\"> <div layout=\"row\" layout-align=\"end\"> <div style=\"padding-right: 4px\">in:</div> <div><em ng-bind-html=\"param.in\"></em></div> </div> <div layout=\"row\" ng-if=\"param.type\" layout-align=\"end\"> <div style=\"padding-right: 4px\">type:</div> <div ng-switch=\"param.type\"> <code ng-switch-when=\"array\" ng-bind=\"\'Array[\'+param.items.type+\']\'\"></code> <code ng-switch-default ng-bind=\"param.type\"></code> </div> </div> </div> </div> <div ng-if=\"(param.in == \'body\') || param.schema\" layout=\"row\" class=\"sum-ind\" style=\"margin-top: 8px\"> <md-input-container flex ng-if=\"param.in == \'body\'\" style=\"margin-top: 2px; padding-right: 16px\"> <md-select aria-label=\"parameter type\" ng-model=\"vm.form.contentType\"> <md-option ng-repeat=\"item in vm.sop.consumes track by item\" value=\"{{item}}\" ng-bind=\"::item\"> </md-option> </md-select> </md-input-container> <div class=\"sum-tools-in\" ng-if=\"param.schema\"> <a class=\"md-button md-primary\" ng-click=\"vm.form[param.name] = param.schema.json\">Set</a> <a class=\"md-button md-primary\" ng-click=\"param.schema.display = !param.schema.display + 0\" ng-bind=\"param.schema.display ? \'Model\' : \'Example\'\"></a> </div> </div> <pre class=\"sum-pre sum-wrap sum-no-margin sum-ind\" ng-if=\"param.schema.display == 0 && param.schema.model\" ng-bind-html=\"param.schema.model\"></pre> <pre class=\"sum-pre sum-no-margin sum-ind\" ng-if=\"param.schema.display == 1 && param.schema.json\" ng-bind=\"param.schema.json\"></pre> <div ng-if=\"!vm.data.ui.explorer\"> <div ng-if=\"param.in != \'body\'\"> <div ng-if=\"param.default\"><span ng-bind=\"param.default\"></span> (default)</div> <div ng-if=\"param.enum\"> <span ng-repeat=\"value in param.enum track by $index\">{{value}}<span ng-if=\"!$last\"> or </span></span> </div> <div ng-if=\"param.required\">(required)</div> </div> </div> </div>");
