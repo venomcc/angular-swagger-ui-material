@@ -64,6 +64,83 @@
                     search[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
                 }
 
+
+                $mdThemingProvider.definePalette('T&F Primary', {
+                    '50': '80D5E6',
+                    '100': '80D5E6',
+                    '200': '80D5E6',
+                    '300': '00AACC',
+                    '400': '00AACC',
+                    '500': '00AACC',
+                    '600': '00AACC',
+                    '700': '0088A3',
+                    '800': '0088A3',
+                    '900': '0088A3',
+                    'A100': 'ADF1FF',
+                    'A200': '61E5FF',
+                    'A400': '00A2C2',
+                    'A700': '005566',
+                    'contrastDefaultColor': 'light',    // whether, by default, text (contrast)
+                                                        // on this palette should be dark or light
+
+                    'contrastDarkColors': ['50', '100', //hues which contrast should be 'dark' by default
+                        '200', '300', '400', 'A100'],
+                    'contrastLightColors': undefined    // could also specify this if default was 'dark'
+                });
+
+                $mdThemingProvider.definePalette('T&F Accent', {
+                    '50': 'A1DCC8',
+                    '100': 'A1DCC8',
+                    '200': 'A1DCC8',
+                    '300': '4BC09A',
+                    '400': '4BC09A',
+                    '500': '4BC09A',
+                    '600': '4BC09A',
+                    '700': '359373',
+                    '800': '359373',
+                    '900': '359373',
+                    'A100': 'DEF3EC',
+                    'A200': 'A6DFCB',
+                    'A400': '3DA985',
+                    'A700': '256650',
+                    'contrastDefaultColor': 'light',    // whether, by default, text (contrast)
+                                                        // on this palette should be dark or light
+
+                    'contrastDarkColors': ['50', '100', //hues which contrast should be 'dark' by default
+                        '200', '300', '400', 'A100'],
+                    'contrastLightColors': undefined    // could also specify this if default was 'dark'
+                });
+
+                $mdThemingProvider.definePalette('T&F Warn', {
+                    '50': 'FEDA99',
+                    '100': 'FEDA99',
+                    '200': 'FEDA99',
+                    '300': 'FCB533',
+                    '400': 'FCB533',
+                    '500': 'FCB533',
+                    '600': 'FCB533',
+                    '700': 'D69A2B',
+                    '800': 'D69A2B',
+                    '900': 'D69A2B',
+                    'A100': 'FFFFFF',
+                    'A200': 'F5E5C9',
+                    'A400': 'DBA645',
+                    'A700': 'A47620',
+                    'contrastDefaultColor': 'dark',    // whether, by default, text (contrast)
+                                                        // on this palette should be dark or light
+
+                    'contrastLightColors': ['50', '100', //hues which contrast should be 'dark' by default
+                        '200', '300', '400', 'A100'],
+                    'contrastDarkColors': undefined    // could also specify this if default was 'dark'
+                });
+
+                $mdThemingProvider
+                        .theme('default')
+                        .primaryPalette('T&F Primary')
+                        .accentPalette('T&F Accent')
+                        .warnPalette('T&F Warn');
+/*
+
                 $mdThemingProvider.definePalette('accent', $mdThemingProvider.extendPalette(search.accent || 'grey', {
                     // tweaking md-button.md-accent.md-focused background-color
                     '700': 'dadada'
@@ -76,7 +153,7 @@
                         .accentPalette('accent')
                         .warnPalette(search.warn || 'amber')
                         .foregroundPalette[3] = 'rgba(0, 0, 0, 0.4)';
-
+*/
                 if ($window.location.hostname !== 'localhost') {
                     $logProvider.debugEnabled(false);
                 }

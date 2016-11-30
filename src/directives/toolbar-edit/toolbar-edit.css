@@ -2,7 +2,7 @@ toolbar-edit input {
     background: transparent;
     border: none;
     /* TODO: themed color */
-    color: #fff;
+    color: rgb(0,170,204);
     margin-top: 4px;
     vertical-align: middle;
     position: relative;

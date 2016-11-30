@@ -2,7 +2,7 @@ toolbar-search input {
     background: transparent;
     border: none;
     /* TODO: themed color */
-    color: #fff;
+    color: rgb(0,170,204);
     width: 100px;
     margin-top: 4px;
     vertical-align: middle;

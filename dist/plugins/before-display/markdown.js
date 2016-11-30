@@ -48,6 +48,7 @@ angular.module('sw.plugin.markdown', ['sw.plugins'])
                     operation.description = markdown(operation.description);
 
                     // TODO: remove workaround? http://darosh.github.io/angular-swagger-ui-material/#?url=https:%2F%2Fapi.apis.guru%2Fspecs%2Fwinning.email%2F1.0.0%2Fswagger.json
+
                     operation.summary = operation.summary ? operation.summary.replace(/(<br>)+$/, '') : operation.summary;
 
                     angular.forEach(operation.responses, function (response) {

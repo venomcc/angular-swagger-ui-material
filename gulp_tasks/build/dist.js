@@ -1,6 +1,6 @@
 var gulp = require('gulp');
 
-gulp.task('dist', ['scripts', 'full', 'plugins', 'styles'], function () {
+gulp.task('dist', ['scripts', 'full', 'plugins', 'styles', 'images'], function () {
     var inject = require('gulp-inject');
 
     function transform () {

@@ -100,6 +100,23 @@ angular.module('sw.ui.md')
 'use strict';
 
 angular.module('sw.ui.md')
+    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
+        var vm = this;
+
+        $scope.$on('sw:changed', update);
+
+        update();
+
+        function update () {
+            $log.debug('sw:changed:description');
+
+            vm.description = data.model.info && data.model.info.description;
+        }
+    }]);
+
+'use strict';
+
+angular.module('sw.ui.md')
     .controller('DetailController', ["$scope", "$rootScope", "$timeout", "$log", "data", "theme", "style", "tools", "utils", "syntax", "client", "format", function ($scope, $rootScope, $timeout, $log, data, theme, style, tools, utils, syntax, client, format) {
         var vm = this;
 
@@ -250,23 +267,6 @@ angular.module('sw.ui.md')
             $timeout(function () {
                 operation.tab = 2;
             }, 50);
-        }
-    }]);
-
-'use strict';
-
-angular.module('sw.ui.md')
-    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
-        var vm = this;
-
-        $scope.$on('sw:changed', update);
-
-        update();
-
-        function update () {
-            $log.debug('sw:changed:description');
-
-            vm.description = data.model.info && data.model.info.description;
         }
     }]);
 
@@ -612,6 +612,658 @@ angular.module('sw.plugin.parser', ['sw.plugins'])
     }])
     .run(["plugins", "parser", function (plugins, parser) {
         plugins.add(plugins.PARSE, parser);
+    }]);
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular.module('sw.ui', [
+    'sw.plugins'
+]);
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular
+    .module('sw.ui')
+    .factory('model', ["$log", function ($log) {
+        /**
+         * sample object cache to avoid generating the same one multiple times
+         */
+        var objCache = {};
+
+        /**
+         * model cache to avoid generating the same one multiple times
+         */
+        var modelCache = {};
+
+        /**
+         * inline model counter
+         */
+        var countInLine = 0;
+
+        return {
+            generateModel: generateModel,
+            getType: getType,
+            resolveReference: resolveReference,
+            generateSampleJson: generateSampleJson,
+            getSampleObj: getSampleObj,
+            clearCache: clearCache
+        };
+
+        /**
+         * clears generated models cache
+         */
+        function clearCache () {
+            objCache = {};
+            modelCache = {};
+        }
+
+        /**
+         * retrieves object definition
+         */
+        function resolveReference (swagger, object) {
+            if (object.$ref) {
+                var parts = object.$ref.replace('#/', '').split('/');
+                object = swagger;
+                for (var i = 0, j = parts.length; i < j; i++) {
+                    object = object[parts[i]];
+                }
+            }
+            return object;
+        }
+
+        /**
+         * determines a property type
+         */
+        function getType (item) {
+            var format = item.format;
+            switch (format) {
+                case 'int32':
+                    format = item.type;
+                    break;
+                case 'int64':
+                    format = 'long';
+                    break;
+            }
+            return format || item.type;
+        }
+
+        /**
+         * retrieves object class name based on $ref
+         */
+        function getClassName (item) {
+            var parts = item.$ref.split('/');
+            return parts[parts.length - 1];
+        }
+
+        /**
+         * generates a sample object (request body or response body)
+         */
+        function getSampleObj (swagger, schema, currentGenerated) {
+            var sample;
+            currentGenerated = currentGenerated || {}; // used to handle circular references
+            if (schema.default || schema.example) {
+                sample = schema.default || schema.example;
+            } else if (schema.properties) {
+                sample = {};
+
+                angular.forEach(schema.properties, function (v, name) {
+                    sample[name] = getSampleObj(swagger, v, currentGenerated);
+                });
+            } else if (schema.$ref) {
+                // complex object
+                var def = resolveReference(swagger, schema);
+
+                if (def) {
+                    if (!objCache[schema.$ref] && !currentGenerated[schema.$ref]) {
+                        // object not in cache
+                        currentGenerated[schema.$ref] = true;
+                        objCache[schema.$ref] = getSampleObj(swagger, def, currentGenerated);
+                    }
+
+                    sample = objCache[schema.$ref] || {};
+                } else {
+                    $log.warn('schema not found', schema.$ref);
+                }
+            } else if (schema.type === 'array') {
+                sample = [getSampleObj(swagger, schema.items, currentGenerated)];
+            } else if (schema.type === 'object') {
+                sample = {};
+            } else {
+                sample = schema.defaultValue || schema.example || getSampleValue(getType(schema));
+            }
+            return sample;
+        }
+
+        /**
+         * generates a sample value for a basic type
+         */
+        function getSampleValue (type) {
+            var result;
+            switch (type) {
+                case 'long':
+                case 'integer':
+                    result = 0;
+                    break;
+                case 'boolean':
+                    result = false;
+                    break;
+                case 'double':
+                case 'number':
+                    result = 0.0;
+                    break;
+                case 'string':
+                    result = 'string';
+                    break;
+                case 'date':
+                    result = (new Date()).toISOString().split('T')[0];
+                    break;
+                case 'date-time':
+                    result = (new Date()).toISOString();
+                    break;
+            }
+            return result;
+        }
+
+        /**
+         * generates a sample JSON string (request body or response body)
+         */
+        function generateSampleJson (swagger, schema) {
+            var json;
+            var obj = getSampleObj(swagger, schema);
+
+            if (obj) {
+                json = angular.toJson(obj, true);
+            }
+
+            return json;
+        }
+
+        /**
+         * generates object's model
+         */
+        function generateModel (swagger, schema, modelName, currentGenerated) {
+            var model = '';
+            var buffer;
+            var subModels;
+            var hasProperties = false;
+            var name;
+            var className;
+            var def;
+            var sub;
+
+            currentGenerated = currentGenerated || {}; // used to handle circular references
+
+            function isRequired (item, name) {
+                return item.required && item.required.indexOf(name) !== -1;
+            }
+
+            if (schema.properties) {
+                modelName = modelName || ('Inline Model' + countInLine++);
+                currentGenerated[modelName] = true;
+                buffer = ['<div><strong>' + modelName + ' {</strong>'];
+                subModels = [];
+
+                angular.forEach(schema.properties, function (property, propertyName) {
+                    hasProperties = true;
+                    buffer.push('<div class="pad"><strong>', propertyName, '</strong> (<span class="type">');
+
+                    // build type
+                    if (property.properties) {
+                        name = 'Inline Model' + countInLine++;
+                        buffer.push(name);
+                        subModels.push(generateModel(swagger, property, name, currentGenerated));
+                    } else if (property.$ref) {
+                        buffer.push(getClassName(property));
+                        subModels.push(generateModel(swagger, property, null, currentGenerated));
+                    } else if (property.type === 'array') {
+                        buffer.push('Array[');
+                        if (property.items.properties) {
+                            name = 'Inline Model' + countInLine++;
+                            buffer.push(name);
+                            subModels.push(generateModel(swagger, property, name, currentGenerated));
+                        } else if (property.items.$ref) {
+                            buffer.push(getClassName(property.items));
+                            subModels.push(generateModel(swagger, property.items, null, currentGenerated));
+                        } else {
+                            buffer.push(getType(property.items));
+                        }
+                        buffer.push(']');
+                    } else {
+                        buffer.push(getType(property));
+                    }
+
+                    buffer.push('</span>');
+
+                    // is required ?
+                    if (!isRequired(schema, propertyName)) {
+                        buffer.push(', ', '<em>optional</em>');
+                    }
+
+                    buffer.push(')');
+
+                    // has description
+                    if (property.description) {
+                        buffer.push(': ', property.description);
+                    }
+
+                    // is enum
+                    if (property.enum) {
+                        buffer.push(' = ', angular.toJson(property.enum).replace(/,/g, ' or '));
+                    }
+
+                    buffer.push(',</div>');
+                });
+
+                if (hasProperties) {
+                    buffer.pop();
+                    buffer.push('</div>');
+                }
+
+                buffer.push('<div><strong>}</strong></div>');
+                buffer.push(subModels.join(''), '</div>');
+                model = buffer.join('');
+            } else if (schema.$ref) {
+                className = getClassName(schema);
+                def = resolveReference(swagger, schema);
+
+                if (currentGenerated[className]) {
+                    return ''; // already generated
+                }
+
+                if (def) {
+                    if (!modelCache[schema.$ref]) {
+                        // cache generated object
+                        modelCache[schema.$ref] = generateModel(swagger, def, className, currentGenerated);
+                    }
+                    currentGenerated[className] = true;
+                    model = modelCache[schema.$ref];
+                }
+            } else if (schema.type === 'array') {
+                buffer = ['<strong>Array ['];
+                sub = '';
+
+                if (schema.items.properties) {
+                    name = 'Inline Model' + countInLine++;
+                    buffer.push(name);
+                    sub = generateModel(swagger, schema.items, name, currentGenerated);
+                } else if (schema.items.$ref) {
+                    buffer.push(getClassName(schema.items));
+                    sub = generateModel(swagger, schema.items, null, currentGenerated);
+                } else {
+                    buffer.push(getType(schema.items));
+                }
+
+                buffer.push(']</strong><br><br>', sub);
+                model = buffer.join('');
+            } else if (schema.type === 'object') {
+                model = '<strong>Inline Model {<br>}</strong>';
+            }
+
+            return model;
+        }
+    }]);
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular.module('sw.ui')
+    .factory('format', function () {
+        return {
+            fullUrl: fullUrl
+        };
+
+        function fullUrl (response) {
+            var query = '';
+            var config = response.config || {};
+
+            if (config.params) {
+                var parts = [];
+
+                angular.forEach(config.params, function (v, k) {
+                    parts.push(k + '=' + encodeURIComponent(v));
+                });
+
+                if (parts.length > 0) {
+                    query = '?' + parts.join('&');
+                }
+            }
+
+            return config.url + query;
+        }
+    });
+
+'use strict';
+
+angular.module('sw.ui')
+    .factory('data', ["$log", "$rootScope", "$http", "plugins", function ($log, $rootScope, $http, plugins) {
+        var self = {
+            options: {
+                url: null,
+                validatorUrl: null,
+                parser: 'auto',
+                trustedSources: false,
+                proxy: null,
+                errorHandler: null
+            },
+            ui: {
+                grouped: true,
+                descriptions: false,
+                explorer: true,
+                sidenavOpen: false,
+                sidenavLocked: false
+            },
+            model: {
+                info: null,
+                groups: null,
+                operations: null,
+                form: null,
+                hasSecurity: false,
+                securityDefinitions: null,
+                search: {},
+                sop: null
+            },
+            swagger: null,
+            loading: false,
+            setUrl: setUrl
+        };
+
+        function reset () {
+            self.swagger = null;
+
+            self.model = {
+                info: null,
+                groups: null,
+                form: null,
+                security: null,
+                securityDefinitions: null
+            };
+
+            $log.debug('sw:reset');
+            $rootScope.$broadcast('sw:changed');
+        }
+
+        function setUrl (url) {
+            if (self.options.url === url) {
+                return;
+            }
+
+            $log.debug('sw:url', url);
+
+            reset();
+
+            self.options.url = url;
+
+            if (!url) {
+                return;
+            }
+
+            self.loading = true;
+
+            load(url, function (response) {
+                if (response.config.url !== self.options.url) {
+                    return;
+                }
+
+                self.swagger = response.data;
+                plugins
+                    .execute(plugins.BEFORE_PARSE, url, self.swagger)
+                    .then(function () {
+                        var type = (response.headers()['content-type'] || 'application/json').split(';')[0];
+                        loaded(url, type);
+                        self.loading = false;
+                    })
+                    .catch(onError);
+            }, onError);
+        }
+
+        function load (url, callback, onError) {
+            var options = {
+                method: 'GET',
+                url: url
+            };
+
+            plugins
+                .execute(plugins.BEFORE_LOAD, options)
+                .then(function () {
+                    $http(options).then(callback, onError);
+                })
+                .catch(onError);
+        }
+
+        function loaded (url, type) {
+            var parseResult = {};
+            var swaggerCopy = angular.copy(self.swagger);
+
+            $log.debug('sw:loaded');
+
+            plugins
+                .execute(
+                    plugins.PARSE,
+                    self.options.parser,
+                    url,
+                    type,
+                    swaggerCopy,
+                    self.options.trustedSources,
+                    parseResult)
+                .then(function (executed) {
+                    if (executed) {
+                        parsed(parseResult);
+                    } else {
+                        onError({
+                            message: 'no parser found'
+                        });
+                    }
+                })
+                .catch(onError);
+        }
+
+        function parsed (parseResult) {
+            plugins
+                .execute(plugins.BEFORE_DISPLAY, parseResult)
+                .then(function () {
+                    self.model.info = parseResult.info;
+                    self.model.form = parseResult.form;
+                    self.model.groups = parseResult.resources;
+                    self.model.operations = parseResult.info.operations;
+                    self.model.securityDefinitions = parseResult.securityDefinitions;
+                    self.model.hasSecurity = hasSecurity(self.swagger);
+
+                    $log.debug('sw:parsed');
+                    $rootScope.$broadcast('sw:changed');
+                })
+                .catch(onError);
+        }
+
+        function hasSecurity (swagger) {
+            return Object.keys(swagger.securityDefinitions || {}).length;
+        }
+
+        function onError (error) {
+            self.loading = false;
+
+            if (angular.isFunction(self.options.errorHandler)) {
+                self.options.errorHandler(error);
+            }
+        }
+
+        return self;
+    }])
+;
+
+/*
+ * Orange angular-swagger-ui - v0.3.0
+ *
+ * (C) 2015 Orange, all right reserved
+ * MIT Licensed
+ */
+'use strict';
+
+angular
+    .module('sw.ui')
+    .factory('client', ["$q", "$window", "$http", "$log", "plugins", function ($q, $window, $http, $log, plugins) {
+        // var reqCnt = 1;
+
+        return {
+            configure: configure,
+            send: send,
+            base: base
+        };
+
+        /**
+         * Send API explorer request
+         */
+        function send (swagger, operation, values, mock) {
+            var deferred = $q.defer();
+            var baseUrl = base(swagger);
+            var options = configure(operation, values, baseUrl);
+
+            function done (response) {
+                if ($window.performance) {
+                    var items = $window.performance.getEntriesByType('resource');
+
+                    response.timing = timing(items[items.length - 1]);
+
+                    $log.debug('sw:measure', items[items.length - 1], response.timing);
+                }
+
+                // execute modules
+                plugins
+                    .execute(plugins.AFTER_EXPLORER_LOAD, response)
+                    .then(function () {
+                        deferred.resolve(response);
+                    });
+            }
+
+            function time (e, s) {
+                if (s && e) {
+                    return e - s;
+                } else {
+                    return false;
+                }
+            }
+
+            function timing (timing) {
+                return [
+                    ['redirect', time(timing.redirectEnd, timing.redirectStart)],
+                    ['dns', time(timing.domainLookupEnd, timing.domainLookupStart)],
+                    ['connect', time(timing.connectEnd, timing.connectStart)],
+                    ['request', time(timing.responseStart, timing.requestStart)],
+                    ['response', time(timing.responseEnd, timing.responseStart)],
+                    ['fetch', time(timing.responseEnd, timing.fetchStart)]
+                ];
+            }
+
+            // execute modules
+            plugins
+                .execute(plugins.BEFORE_EXPLORER_LOAD, options)
+                .then(function () {
+                    if (mock) {
+                        deferred.resolve(options);
+                    } else {
+                        checkMixedContent(options).then(function () {
+                            // send request
+                            // $window.performance.mark('mark_start_xhr');
+                            $http(options).then(done, done);
+                        }, done);
+                    }
+                });
+
+            return deferred.promise;
+        }
+
+        function configure (operation, values, baseUrl) {
+            var path = operation.path;
+            var query = {};
+            var headers = {};
+            var body = null;
+
+            // build request parameters
+            angular.forEach(operation.parameters, function (param) {
+                // TODO manage 'collectionFormat' (csv etc.) !!
+                var value = values[param.name];
+
+                switch (param.in) {
+                    case 'query':
+                        if (value) {
+                            query[param.name] = value;
+                        }
+                        break;
+                    case 'path':
+                        path = path.replace('{' + param.name + '}', encodeURIComponent(value));
+                        break;
+                    case 'header':
+                        if (value) {
+                            headers[param.name] = value;
+                        }
+                        break;
+                    case 'formData':
+                        body = body || new $window.FormData();
+                        if (value) {
+                            // make browser defining it by himself
+                            values.contentType = (param.type === 'file') ? undefined : values.contentType;
+                            body.append(param.name, value);
+                        }
+                        break;
+                    case 'body':
+                        body = body || value;
+                        break;
+                }
+            });
+
+            // add headers
+            headers.accept = values.responseType;
+            headers['content-type'] = body ? values.contentType : 'text/plain';
+
+            return {
+                method: operation.httpMethod,
+                url: baseUrl + path,
+                headers: headers,
+                data: body,
+                params: query
+            };
+        }
+
+        function base (swaggerInfo) {
+            return [
+                swaggerInfo.scheme,
+                '://',
+                swaggerInfo.host,
+                (swaggerInfo.basePath === '/' ? '' : swaggerInfo.basePath) || ''
+            ].join('');
+        }
+
+        function protocol (url) {
+            return angular.element('<a href="' + url + '"></a>')[0].protocol.replace(':');
+        }
+
+        function checkMixedContent (options) {
+            var deferred = $q.defer();
+
+            if ((protocol($window.location.href) === 'https') && (protocol(options.url) === 'http')) {
+                deferred.reject({config: options, status: -1, statusText: 'HTTPS mixed with HTTP content'});
+            } else {
+                deferred.resolve();
+            }
+
+            return deferred.promise;
+        }
     }]);
 
 'use strict';
@@ -1223,7 +1875,7 @@ angular.module('sw.ui.md')
             ],
             205: [
                 'Reset Content',
-                'indicates that the server has fulfilled the request and desires that the user agent reset the \"document view\", which caused the request to be sent, to its original state as received from the origin server.',
+                'indicates that the server has fulfilled the request and desires that the user agent reset the "document view", which caused the request to be sent, to its original state as received from the origin server.',
                 'RFC7231#6.3.6',
                 'http://tools.ietf.org/html/rfc7231#section-6.3.6'
             ],
@@ -1433,7 +2085,7 @@ angular.module('sw.ui.md')
             ],
             429: [
                 'Too Many Requests',
-                'indicates that the user has sent too many requests in a given amount of time (\"rate limiting\").',
+                'indicates that the user has sent too many requests in a given amount of time ("rate limiting").',
                 'RFC6585#4',
                 'http://tools.ietf.org/html/rfc6585#section-4'
             ],
@@ -1609,7 +2261,7 @@ angular.module('sw.ui.md')
             ],
             pragma: [
                 'Pragma',
-                'allows backwards compatibility with HTTP/1.0 caches, so that clients can specify a \"no-cache\" request that they will understand (as Cache-Control was not defined until HTTP/1.1).',
+                'allows backwards compatibility with HTTP/1.0 caches, so that clients can specify a "no-cache" request that they will understand (as Cache-Control was not defined until HTTP/1.1).',
                 'RFC7234#7.4',
                 'http://tools.ietf.org/html/rfc7234#section-7.4'
             ],
@@ -1705,7 +2357,7 @@ angular.module('sw.ui.md')
             ],
             referer: [
                 'Referer',
-                'allows the user agent to specify a URI reference for the resource from which the target URI was obtained (i.e., the \"referrer\", though the field name is misspelled).',
+                'allows the user agent to specify a URI reference for the resource from which the target URI was obtained (i.e., the "referrer", though the field name is misspelled).',
                 'RFC7231#5.5.2',
                 'http://tools.ietf.org/html/rfc7231#section-5.5.2'
             ],
@@ -2215,628 +2867,6 @@ angular.module('sw.ui.md')
                 $scope.vm.opened = false;
                 $mdDialog.hide();
             };
-        }
-    }]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular.module('sw.ui', [
-    'sw.plugins'
-]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular
-    .module('sw.ui')
-    .factory('model', ["$log", function ($log) {
-        /**
-         * sample object cache to avoid generating the same one multiple times
-         */
-        var objCache = {};
-
-        /**
-         * model cache to avoid generating the same one multiple times
-         */
-        var modelCache = {};
-
-        /**
-         * inline model counter
-         */
-        var countInLine = 0;
-
-        return {
-            generateModel: generateModel,
-            getType: getType,
-            resolveReference: resolveReference,
-            generateSampleJson: generateSampleJson,
-            getSampleObj: getSampleObj,
-            clearCache: clearCache
-        };
-
-        /**
-         * clears generated models cache
-         */
-        function clearCache () {
-            objCache = {};
-            modelCache = {};
-        }
-
-        /**
-         * retrieves object definition
-         */
-        function resolveReference (swagger, object) {
-            if (object.$ref) {
-                var parts = object.$ref.replace('#/', '').split('/');
-                object = swagger;
-                for (var i = 0, j = parts.length; i < j; i++) {
-                    object = object[parts[i]];
-                }
-            }
-            return object;
-        }
-
-        /**
-         * determines a property type
-         */
-        function getType (item) {
-            var format = item.format;
-            switch (format) {
-                case 'int32':
-                    format = item.type;
-                    break;
-                case 'int64':
-                    format = 'long';
-                    break;
-            }
-            return format || item.type;
-        }
-
-        /**
-         * retrieves object class name based on $ref
-         */
-        function getClassName (item) {
-            var parts = item.$ref.split('/');
-            return parts[parts.length - 1];
-        }
-
-        /**
-         * generates a sample object (request body or response body)
-         */
-        function getSampleObj (swagger, schema, currentGenerated) {
-            var sample;
-            currentGenerated = currentGenerated || {}; // used to handle circular references
-            if (schema.default || schema.example) {
-                sample = schema.default || schema.example;
-            } else if (schema.properties) {
-                sample = {};
-
-                angular.forEach(schema.properties, function (v, name) {
-                    sample[name] = getSampleObj(swagger, v, currentGenerated);
-                });
-            } else if (schema.$ref) {
-                // complex object
-                var def = resolveReference(swagger, schema);
-
-                if (def) {
-                    if (!objCache[schema.$ref] && !currentGenerated[schema.$ref]) {
-                        // object not in cache
-                        currentGenerated[schema.$ref] = true;
-                        objCache[schema.$ref] = getSampleObj(swagger, def, currentGenerated);
-                    }
-
-                    sample = objCache[schema.$ref] || {};
-                } else {
-                    $log.warn('schema not found', schema.$ref);
-                }
-            } else if (schema.type === 'array') {
-                sample = [getSampleObj(swagger, schema.items, currentGenerated)];
-            } else if (schema.type === 'object') {
-                sample = {};
-            } else {
-                sample = schema.defaultValue || schema.example || getSampleValue(getType(schema));
-            }
-            return sample;
-        }
-
-        /**
-         * generates a sample value for a basic type
-         */
-        function getSampleValue (type) {
-            var result;
-            switch (type) {
-                case 'long':
-                case 'integer':
-                    result = 0;
-                    break;
-                case 'boolean':
-                    result = false;
-                    break;
-                case 'double':
-                case 'number':
-                    result = 0.0;
-                    break;
-                case 'string':
-                    result = 'string';
-                    break;
-                case 'date':
-                    result = (new Date()).toISOString().split('T')[0];
-                    break;
-                case 'date-time':
-                    result = (new Date()).toISOString();
-                    break;
-            }
-            return result;
-        }
-
-        /**
-         * generates a sample JSON string (request body or response body)
-         */
-        function generateSampleJson (swagger, schema) {
-            var json;
-            var obj = getSampleObj(swagger, schema);
-
-            if (obj) {
-                json = angular.toJson(obj, true);
-            }
-
-            return json;
-        }
-
-        /**
-         * generates object's model
-         */
-        function generateModel (swagger, schema, modelName, currentGenerated) {
-            var model = '';
-            var buffer;
-            var subModels;
-            var hasProperties = false;
-            var name;
-            var className;
-            var def;
-            var sub;
-
-            currentGenerated = currentGenerated || {}; // used to handle circular references
-
-            function isRequired (item, name) {
-                return item.required && item.required.indexOf(name) !== -1;
-            }
-
-            if (schema.properties) {
-                modelName = modelName || ('Inline Model' + countInLine++);
-                currentGenerated[modelName] = true;
-                buffer = ['<div><strong>' + modelName + ' {</strong>'];
-                subModels = [];
-
-                angular.forEach(schema.properties, function (property, propertyName) {
-                    hasProperties = true;
-                    buffer.push('<div class="pad"><strong>', propertyName, '</strong> (<span class="type">');
-
-                    // build type
-                    if (property.properties) {
-                        name = 'Inline Model' + countInLine++;
-                        buffer.push(name);
-                        subModels.push(generateModel(swagger, property, name, currentGenerated));
-                    } else if (property.$ref) {
-                        buffer.push(getClassName(property));
-                        subModels.push(generateModel(swagger, property, null, currentGenerated));
-                    } else if (property.type === 'array') {
-                        buffer.push('Array[');
-                        if (property.items.properties) {
-                            name = 'Inline Model' + countInLine++;
-                            buffer.push(name);
-                            subModels.push(generateModel(swagger, property, name, currentGenerated));
-                        } else if (property.items.$ref) {
-                            buffer.push(getClassName(property.items));
-                            subModels.push(generateModel(swagger, property.items, null, currentGenerated));
-                        } else {
-                            buffer.push(getType(property.items));
-                        }
-                        buffer.push(']');
-                    } else {
-                        buffer.push(getType(property));
-                    }
-
-                    buffer.push('</span>');
-
-                    // is required ?
-                    if (!isRequired(schema, propertyName)) {
-                        buffer.push(', ', '<em>optional</em>');
-                    }
-
-                    buffer.push(')');
-
-                    // has description
-                    if (property.description) {
-                        buffer.push(': ', property.description);
-                    }
-
-                    // is enum
-                    if (property.enum) {
-                        buffer.push(' = ', angular.toJson(property.enum).replace(/,/g, ' or '));
-                    }
-
-                    buffer.push(',</div>');
-                });
-
-                if (hasProperties) {
-                    buffer.pop();
-                    buffer.push('</div>');
-                }
-
-                buffer.push('<div><strong>}</strong></div>');
-                buffer.push(subModels.join(''), '</div>');
-                model = buffer.join('');
-            } else if (schema.$ref) {
-                className = getClassName(schema);
-                def = resolveReference(swagger, schema);
-
-                if (currentGenerated[className]) {
-                    return ''; // already generated
-                }
-
-                if (def) {
-                    if (!modelCache[schema.$ref]) {
-                        // cache generated object
-                        modelCache[schema.$ref] = generateModel(swagger, def, className, currentGenerated);
-                    }
-                    currentGenerated[className] = true;
-                    model = modelCache[schema.$ref];
-                }
-            } else if (schema.type === 'array') {
-                buffer = ['<strong>Array ['];
-                sub = '';
-
-                if (schema.items.properties) {
-                    name = 'Inline Model' + countInLine++;
-                    buffer.push(name);
-                    sub = generateModel(swagger, schema.items, name, currentGenerated);
-                } else if (schema.items.$ref) {
-                    buffer.push(getClassName(schema.items));
-                    sub = generateModel(swagger, schema.items, null, currentGenerated);
-                } else {
-                    buffer.push(getType(schema.items));
-                }
-
-                buffer.push(']</strong><br><br>', sub);
-                model = buffer.join('');
-            } else if (schema.type === 'object') {
-                model = '<strong>Inline Model {<br>}</strong>';
-            }
-
-            return model;
-        }
-    }]);
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular.module('sw.ui')
-    .factory('format', function () {
-        return {
-            fullUrl: fullUrl
-        };
-
-        function fullUrl (response) {
-            var query = '';
-            var config = response.config || {};
-
-            if (config.params) {
-                var parts = [];
-
-                angular.forEach(config.params, function (v, k) {
-                    parts.push(k + '=' + encodeURIComponent(v));
-                });
-
-                if (parts.length > 0) {
-                    query = '?' + parts.join('&');
-                }
-            }
-
-            return config.url + query;
-        }
-    });
-
-'use strict';
-
-angular.module('sw.ui')
-    .factory('data', ["$log", "$rootScope", "$http", "plugins", function ($log, $rootScope, $http, plugins) {
-        var self = {
-            options: {
-                url: null,
-                validatorUrl: null,
-                parser: 'auto',
-                trustedSources: false,
-                proxy: null,
-                errorHandler: null
-            },
-            ui: {
-                grouped: true,
-                descriptions: false,
-                explorer: true,
-                sidenavOpen: false,
-                sidenavLocked: false
-            },
-            model: {
-                info: null,
-                groups: null,
-                operations: null,
-                form: null,
-                hasSecurity: false,
-                securityDefinitions: null,
-                search: {},
-                sop: null
-            },
-            swagger: null,
-            loading: false,
-            setUrl: setUrl
-        };
-
-        function reset () {
-            self.swagger = null;
-
-            self.model = {
-                info: null,
-                groups: null,
-                form: null,
-                security: null,
-                securityDefinitions: null
-            };
-
-            $log.debug('sw:reset');
-            $rootScope.$broadcast('sw:changed');
-        }
-
-        function setUrl (url) {
-            if (self.options.url === url) {
-                return;
-            }
-
-            $log.debug('sw:url', url);
-
-            reset();
-
-            self.options.url = url;
-
-            if (!url) {
-                return;
-            }
-
-            self.loading = true;
-
-            load(url, function (response) {
-                if (response.config.url !== self.options.url) {
-                    return;
-                }
-
-                self.swagger = response.data;
-                plugins
-                    .execute(plugins.BEFORE_PARSE, url, self.swagger)
-                    .then(function () {
-                        var type = (response.headers()['content-type'] || 'application/json').split(';')[0];
-                        loaded(url, type);
-                        self.loading = false;
-                    })
-                    .catch(onError);
-            }, onError);
-        }
-
-        function load (url, callback, onError) {
-            var options = {
-                method: 'GET',
-                url: url
-            };
-
-            plugins
-                .execute(plugins.BEFORE_LOAD, options)
-                .then(function () {
-                    $http(options).then(callback, onError);
-                })
-                .catch(onError);
-        }
-
-        function loaded (url, type) {
-            var parseResult = {};
-            var swaggerCopy = angular.copy(self.swagger);
-
-            $log.debug('sw:loaded');
-
-            plugins
-                .execute(
-                    plugins.PARSE,
-                    self.options.parser,
-                    url,
-                    type,
-                    swaggerCopy,
-                    self.options.trustedSources,
-                    parseResult)
-                .then(function (executed) {
-                    if (executed) {
-                        parsed(parseResult);
-                    } else {
-                        onError({
-                            message: 'no parser found'
-                        });
-                    }
-                })
-                .catch(onError);
-        }
-
-        function parsed (parseResult) {
-            plugins
-                .execute(plugins.BEFORE_DISPLAY, parseResult)
-                .then(function () {
-                    self.model.info = parseResult.info;
-                    self.model.form = parseResult.form;
-                    self.model.groups = parseResult.resources;
-                    self.model.operations = parseResult.info.operations;
-                    self.model.securityDefinitions = parseResult.securityDefinitions;
-                    self.model.hasSecurity = hasSecurity(self.swagger);
-
-                    $log.debug('sw:parsed');
-                    $rootScope.$broadcast('sw:changed');
-                })
-                .catch(onError);
-        }
-
-        function hasSecurity (swagger) {
-            return Object.keys(swagger.securityDefinitions || {}).length;
-        }
-
-        function onError (error) {
-            self.loading = false;
-
-            if (angular.isFunction(self.options.errorHandler)) {
-                self.options.errorHandler(error);
-            }
-        }
-
-        return self;
-    }])
-;
-
-/*
- * Orange angular-swagger-ui - v0.3.0
- *
- * (C) 2015 Orange, all right reserved
- * MIT Licensed
- */
-'use strict';
-
-angular
-    .module('sw.ui')
-    .factory('client', ["$q", "$window", "$http", "plugins", function ($q, $window, $http, plugins) {
-        return {
-            configure: configure,
-            send: send,
-            base: base
-        };
-
-        /**
-         * Send API explorer request
-         */
-        function send (swagger, operation, values, mock) {
-            var deferred = $q.defer();
-            var baseUrl = base(swagger);
-            var options = configure(operation, values, baseUrl);
-
-            function done (response) {
-                // execute modules
-                plugins
-                    .execute(plugins.AFTER_EXPLORER_LOAD, response)
-                    .then(function () {
-                        deferred.resolve(response);
-                    });
-            }
-
-            // execute modules
-            plugins
-                .execute(plugins.BEFORE_EXPLORER_LOAD, options)
-                .then(function () {
-                    if (mock) {
-                        deferred.resolve(options);
-                    } else {
-                        checkMixedContent(options).then(function () {
-                            // send request
-                            $http(options).then(done, done);
-                        }, done);
-                    }
-                });
-
-            return deferred.promise;
-        }
-
-        function configure (operation, values, baseUrl) {
-            var path = operation.path;
-            var query = {};
-            var headers = {};
-            var body = null;
-
-            // build request parameters
-            angular.forEach(operation.parameters, function (param) {
-                // TODO manage 'collectionFormat' (csv etc.) !!
-                var value = values[param.name];
-
-                switch (param.in) {
-                    case 'query':
-                        if (value) {
-                            query[param.name] = value;
-                        }
-                        break;
-                    case 'path':
-                        path = path.replace('{' + param.name + '}', encodeURIComponent(value));
-                        break;
-                    case 'header':
-                        if (value) {
-                            headers[param.name] = value;
-                        }
-                        break;
-                    case 'formData':
-                        body = body || new $window.FormData();
-                        if (value) {
-                            // make browser defining it by himself
-                            values.contentType = (param.type === 'file') ? undefined : values.contentType;
-                            body.append(param.name, value);
-                        }
-                        break;
-                    case 'body':
-                        body = body || value;
-                        break;
-                }
-            });
-
-            // add headers
-            headers.accept = values.responseType;
-            headers['content-type'] = body ? values.contentType : 'text/plain';
-
-            return {
-                method: operation.httpMethod,
-                url: baseUrl + path,
-                headers: headers,
-                data: body,
-                params: query
-            };
-        }
-
-        function base (swaggerInfo) {
-            return [
-                swaggerInfo.scheme,
-                '://',
-                swaggerInfo.host,
-                (swaggerInfo.basePath === '/' ? '' : swaggerInfo.basePath) || ''
-            ].join('');
-        }
-
-        function protocol (url) {
-            return angular.element('<a href="' + url + '"></a>')[0].protocol.replace(':');
-        }
-
-        function checkMixedContent (options) {
-            var deferred = $q.defer();
-
-            if ((protocol($window.location.href) === 'https') && (protocol(options.url) === 'http')) {
-                deferred.reject({config: options, status: -1, statusText: 'HTTPS mixed with HTTP content'});
-            } else {
-                deferred.resolve();
-            }
-
-            return deferred.promise;
         }
     }]);
 
