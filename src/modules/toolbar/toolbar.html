@@ -6,14 +6,15 @@
     </div>
     <div class="md-toolbar-tools" ng-show="!vm.loading">
         <img src="./images/t-f-new.png" />
+        <!--
         <toolbar-edit class="sum-delay md-toolbar-tools"
                       ng-model="vm.editUrl"
                       ng-changed="vm.editedUrl"
                       display-title="vm.data.model.info.title"
                       ng-show="vm.searchOpened && vm.$mdMedia('gt-sm') || !vm.searchOpened"
                       flex
-                      style="padding-left: 0; padding-right: 0"></toolbar-edit>
-        <span flex ng-show="vm.searchOpened"></span>
+                      style="padding-left: 0; padding-right: 0"></toolbar-edit>-->
+        <span flex></span>
         <toolbar-search ng-show="!vm.loading"
                         ng-model="vm.search"
                         ng-changed="vm.searchUpdated"

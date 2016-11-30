@@ -100,6 +100,37 @@ angular.module('sw.ui.md')
 'use strict';
 
 angular.module('sw.ui.md')
+    .controller('ContentController', ["$rootScope", "data", "theme", function ($rootScope, data, theme) {
+        var vm = this;
+
+        vm.data = data;
+        vm.theme = theme;
+
+        vm.toggleGroup = toggleGroup;
+        vm.selectOperation = selectOperation;
+
+        function toggleGroup (group, $event) {
+            $event.preventDefault();
+            $event.stopPropagation();
+
+            // Space bar does not stop propagation :-(
+            if (($event.keyCode || $event.which) === 32) {
+                return;
+            }
+
+            group.open = !group.open;
+        }
+
+        function selectOperation (op, $event) {
+            $event.stopPropagation();
+            data.model.sop = op;
+            $rootScope.$emit('sw:operation');
+        }
+    }]);
+
+'use strict';
+
+angular.module('sw.ui.md')
     .controller('DetailController', ["$scope", "$rootScope", "$timeout", "$log", "data", "theme", "style", "tools", "utils", "syntax", "client", "format", function ($scope, $rootScope, $timeout, $log, data, theme, style, tools, utils, syntax, client, format) {
         var vm = this;
 
@@ -267,37 +298,6 @@ angular.module('sw.ui.md')
             $log.debug('sw:changed:description');
 
             vm.description = data.model.info && data.model.info.description;
-        }
-    }]);
-
-'use strict';
-
-angular.module('sw.ui.md')
-    .controller('ContentController', ["$rootScope", "data", "theme", function ($rootScope, data, theme) {
-        var vm = this;
-
-        vm.data = data;
-        vm.theme = theme;
-
-        vm.toggleGroup = toggleGroup;
-        vm.selectOperation = selectOperation;
-
-        function toggleGroup (group, $event) {
-            $event.preventDefault();
-            $event.stopPropagation();
-
-            // Space bar does not stop propagation :-(
-            if (($event.keyCode || $event.which) === 32) {
-                return;
-            }
-
-            group.open = !group.open;
-        }
-
-        function selectOperation (op, $event) {
-            $event.stopPropagation();
-            data.model.sop = op;
-            $rootScope.$emit('sw:operation');
         }
     }]);
 
