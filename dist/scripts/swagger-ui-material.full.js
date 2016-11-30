@@ -256,6 +256,23 @@ angular.module('sw.ui.md')
 'use strict';
 
 angular.module('sw.ui.md')
+    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
+        var vm = this;
+
+        $scope.$on('sw:changed', update);
+
+        update();
+
+        function update () {
+            $log.debug('sw:changed:description');
+
+            vm.description = data.model.info && data.model.info.description;
+        }
+    }]);
+
+'use strict';
+
+angular.module('sw.ui.md')
     .controller('ContentController', ["$rootScope", "data", "theme", function ($rootScope, data, theme) {
         var vm = this;
 
@@ -281,23 +298,6 @@ angular.module('sw.ui.md')
             $event.stopPropagation();
             data.model.sop = op;
             $rootScope.$emit('sw:operation');
-        }
-    }]);
-
-'use strict';
-
-angular.module('sw.ui.md')
-    .controller('DescriptionController', ["$scope", "$log", "data", function ($scope, $log, data) {
-        var vm = this;
-
-        $scope.$on('sw:changed', update);
-
-        update();
-
-        function update () {
-            $log.debug('sw:changed:description');
-
-            vm.description = data.model.info && data.model.info.description;
         }
     }]);
 
